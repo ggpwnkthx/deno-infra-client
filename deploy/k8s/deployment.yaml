@@ -1,0 +1,47 @@
+# deploy/k8s/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faas-compatible
+  labels:
+    app: faas-compatible
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faas-compatible
+  template:
+    metadata:
+      labels:
+        app: faas-compatible
+    spec:
+      containers:
+        - name: faas-compatible
+          image: faas-compatible:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            # Run Deno with all permissions (-A) and point at the CLI entrypoint
+            [
+              "deno",
+              "run",
+              "-A",
+              "/app/src/cli.ts",
+            ]
+          volumeMounts:
+            # Mount Docker socket so “hasLifecyclePermission” can check /var/run/docker.sock
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+            # Mount kubeconfig (read-only) so that Kubernetes-based detection will work
+            - name: kubeconfig
+              mountPath: /root/.kube
+          env:
+            # Point KUBECONFIG to the mounted file
+            - name: KUBECONFIG
+              value: /root/.kube/config
+      volumes:
+        # HostPath for Docker socket
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+      restartPolicy: OnFailure

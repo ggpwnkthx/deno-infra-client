@@ -1,0 +1,20 @@
+{
+  "name": "deno-faas-infra",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-toolsai.jupyter",
+        "justjavac.vscode-deno-extensionpack",
+        "vscode-icons-team.vscode-icons",
+        "AndyGeek.context-code"
+      ]
+    }
+  },
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "runArgs": ["--privileged"]
+}

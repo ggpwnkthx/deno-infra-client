@@ -1,0 +1,13 @@
+# deploy/docker-compose.yml
+
+version: "3.8"
+
+services:
+  detector:
+    build:
+      context: ..
+      dockerfile: ./deploy/dockerfile
+    volumes:
+      # Mount the host Docker socket so the container‐lifecycle checks will work
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: "no"
