@@ -3,22 +3,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: faas-compatible
+  name: faas-infra
   labels:
-    app: faas-compatible
+    app: faas-infra
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: faas-compatible
+      app: faas-infra
   template:
     metadata:
       labels:
-        app: faas-compatible
+        app: faas-infra
     spec:
       containers:
-        - name: faas-compatible
-          image: faas-compatible:latest
+        - name: faas-infra
+          image: faas-infra:latest
           imagePullPolicy: IfNotPresent
           command:
             # Run Deno with all permissions (-A) and point at the CLI entrypoint

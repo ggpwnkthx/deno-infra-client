@@ -1,5 +1,5 @@
 {
-  "name": "@ggpwnkthx/faas-compatible",
+  "name": "@ggpwnkthx/faas-infra",
   "version": "0.0.1",
   "license": "MIT",
   "exports": "./mod.ts",
