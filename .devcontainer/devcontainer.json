@@ -1,5 +1,5 @@
 {
-  "name": "deno-faas-infra",
+  "name": "deno-infra-client",
   "build": {
     "dockerfile": "Dockerfile"
   },
@@ -13,23 +13,17 @@
       ]
     }
   },
-  "runArgs": [
-    // 1) Bind-mount the socket into the container
-    "--mount",
-    "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock"
-    // 2) (Optional) Mount the host's 'docker' binary, if you don't install it from your Dockerfile.
-    // "--mount", "type=bind,source=/usr/bin/docker,target=/usr/bin/docker",
-
-    // 3) (Optional) If you need additional privileges, enable --privileged:
-    // "--privileged"
+  "runArgs": ["--init", "--privileged"],
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind"
   ],
-
-  // ─────── Make sure the container’s "docker" group ID matches host’s GID ───────
-  //
-  // On your host, run: `ls -ln /var/run/docker.sock`
-  // Suppose that shows: `srw-rw---- 1 0 129 0 May 31 14:56 /var/run/docker.sock` with GID=129. Then set DOCKER_GROUP_ID to 129.
-  //
-  "containerEnv": {
-    "DOCKER_GROUP_ID": "129"
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerBuildx": true,
+      "installDockerComposeSwitch": true,
+      "version": "latest",
+      "dockerDashComposeVersion": "v2"
+    }
   }
 }
