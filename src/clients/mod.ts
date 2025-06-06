@@ -4,9 +4,7 @@ import type { ClientOptions, ContainerRuntime } from "./types.ts";
 import { DockerClient } from "./docker.ts";
 import { PodmanClient } from "./podman.ts";
 import { KubernetesClient } from "./kubernetes.ts";
-import { CrioClient } from "./crio.ts";
 import { ContainerdClient } from "./containerd.ts";
-// import { LxcClient } from "./lxc.ts";
 import { LxdClient } from "./lxd.ts";
 import {
   type ContainerPlatform,
@@ -37,14 +35,9 @@ export function clientFactory(
           return new DockerClient(opts);
         case Runtime.Podman:
           return new PodmanClient(opts);
-        case Runtime.Crio:
-          return new CrioClient(opts);
         case Runtime.Containerd:
           return new ContainerdClient(opts);
         case Runtime.LXC:
-          // The infra-sense Runtime.LXC covers both LXC and LXD.
-          // Choose LxdClient if you expect LXD behavior, or LxcClient otherwise.
-          // Here, we'll instantiate LxdClient for LXC/LXD support by default.
           return new LxdClient(opts);
         default:
           throw new Error(

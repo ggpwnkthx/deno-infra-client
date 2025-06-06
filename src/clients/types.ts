@@ -1,35 +1,63 @@
 // src/clients/types.ts
 
-/** --------- Shared Utility Types --------- **/
+/**
+ * --------- Shared Utility Types ---------
+ */
 
-/** Helper for unknown object maps */
+/** Generic dictionary type */
 export type Dict<T = unknown> = Record<string, T>;
 
-/** Standard API response shape (for "inspect"-like calls) */
-export interface ContainerInfoBase {
-  id: string;
-  name?: string;
-  state?: Dict;
-  image?: string;
-  created?: string;
-  [key: string]: unknown;
+/**
+ * ContainerRuntime: a fully‐generic, strongly‐typed interface for any
+ * container runtime. Each runtime specialization will supply its own
+ * Create/Inspect request+response types, etc.
+ */
+export interface ContainerRuntime<
+  /** Create‐request payload */
+  CreateReq = unknown,
+  /** Create‐response payload */
+  CreateRes = unknown,
+  /** Inspect‐request parameter (usually a string name/ID) */
+  InspectReq = string,
+  /** Inspect‐response payload */
+  InspectRes = unknown,
+  /** Start‐request parameter (usually a string name/ID) */
+  StartReq = string,
+  /** Start‐response payload */
+  StartRes = unknown,
+  /** Stop‐request parameter (usually a string name/ID) */
+  StopReq = string,
+  /** Stop‐response payload */
+  StopRes = unknown,
+> {
+  /** List all “instances” (containers, pods, etc.) */
+  list(): Promise<unknown[]>;
+
+  /** Create a new “instance” (container, pod, etc.) */
+  create(options: CreateReq): Promise<CreateRes>;
+
+  /** Inspect a single “instance” by ID or name */
+  inspect(id: InspectReq): Promise<InspectRes>;
+
+  /** Start a “instance” by ID or name */
+  start(id: StartReq): Promise<StartRes>;
+
+  /** Stop a “instance” by ID or name */
+  stop(id: StopReq): Promise<StopRes>;
+
+  /** Restart a “instance” by ID or name */
+  restart(id: StartReq & StopReq): Promise<StartRes>;
+
+  /** Remove (delete) an “instance” by ID or name */
+  remove(id: string): Promise<void>;
+
+  /** Fetch logs (stdout+stderr) for an “instance” by ID or name */
+  logs(id: string): Promise<string>;
 }
 
-/** Generic container creation result */
-export interface CreateResponseBase {
-  id: string;
-  warnings?: string[];
-  [key: string]: unknown;
-}
-
-/** Generic error result (if API returns error objects) */
-export interface ApiError {
-  message: string;
-  code?: number | string;
-  [key: string]: unknown;
-}
-
-/** --------- Docker & Podman --------- **/
+/**
+ * --------- Docker & Podman ---------
+ */
 
 export interface DockerCreateRequest {
   Image: string;
@@ -39,34 +67,34 @@ export interface DockerCreateRequest {
   [key: string]: unknown;
 }
 
-export interface DockerCreateResponse extends CreateResponseBase {}
-
-export interface DockerInspectResponse extends ContainerInfoBase {}
-
-export type PodmanCreateRequest = DockerCreateRequest;
-export type PodmanCreateResponse = DockerCreateResponse;
-export type PodmanInspectResponse = DockerInspectResponse;
-
-/** --------- LXC --------- **/
-
-export interface LxcCreateRequest {
-  name: string;
-  template?: string; // E.g., "download", "ubuntu"
+export interface DockerCreateResponse {
+  id: string;
   [key: string]: unknown;
 }
 
-export interface LxcCreateResponse {
-  name: string;
-  output: string; // Command output
+export interface DockerInspectResponse {
+  id: string;
+  name?: string;
+  state?: Dict;
+  image?: string;
+  created?: string;
+  [key: string]: unknown;
 }
 
-export interface LxcInspectResponse {
-  output: string; // lxc-info output
-}
+export type DockerClientType = ContainerRuntime<
+  DockerCreateRequest,
+  DockerCreateResponse,
+  string,
+  DockerInspectResponse,
+  string,
+  void,
+  string,
+  void
+>;
 
-/** --------- LXD --------- **/
-
-// LXD API is more RESTful, but similar to Docker for basic ops
+/**
+ * --------- LXD ---------
+ */
 
 export interface LxdCreateRequest {
   name: string;
@@ -86,138 +114,25 @@ export interface LxdCreateResponse {
 }
 
 export interface LxdInspectResponse {
-  metadata: Dict;
+  type: string;
+  status: string;
+  status_code: number;
+  operation: string;
+  metadata: {
+    name: string;
+    status: string;
+    stateful: boolean;
+    description?: string;
+    devices?: Record<string, unknown>;
+    ephemeral: boolean;
+    profiles?: string[];
+    created_at?: string;
+    expanded_config?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  etag?: string;
   [key: string]: unknown;
 }
-
-/** --------- Kubernetes --------- **/
-
-// K8s is more abstract: "create" is always a Pod spec, "inspect" is a Pod status object
-
-export interface KubernetesPodSpec {
-  metadata: { name: string; [k: string]: unknown };
-  spec: Dict;
-  [key: string]: unknown;
-}
-export interface KubernetesPodResponse {
-  metadata: { name: string; [k: string]: unknown };
-  status?: Dict;
-  [key: string]: unknown;
-}
-
-/** --------- Containerd --------- **/
-
-// Containerd (and CRI-O) usually follow a protobuf schema, here's a practical abstraction
-
-export interface ContainerdCreateRequest {
-  id: string;
-  image: string;
-  labels?: Dict<string>;
-  [key: string]: unknown;
-}
-
-export interface ContainerdCreateResponse extends CreateResponseBase {}
-
-export interface ContainerdInspectResponse extends ContainerInfoBase {}
-
-/** --------- CRI-O --------- **/
-
-// CRI-O is very similar to containerd (both are CRI), so reuse those types
-
-export type CrioCreateRequest = ContainerdCreateRequest;
-export type CrioCreateResponse = ContainerdCreateResponse;
-export type CrioInspectResponse = ContainerdInspectResponse;
-
-/** --------- Abstract ContainerRuntime --------- **/
-
-/**
- * Generic container lifecycle interface.
- * By default, each op can have different request/response typing.
- */
-export interface ContainerRuntime<
-  CreateReq = unknown,
-  CreateRes = unknown,
-  InspectReq = string,
-  InspectRes = unknown,
-  StartReq = string,
-  StartRes = unknown,
-  StopReq = string,
-  StopRes = unknown,
-> {
-  /** List all containers (returns an array of “raw” container objects). */
-  list(): Promise<unknown[]>;
-
-  /** Create a new container given `CreateReq`. */
-  create(options: CreateReq): Promise<CreateRes>;
-
-  /** Inspect a single container by ID/name. */
-  inspect(id: InspectReq): Promise<InspectRes>;
-
-  /** Start a container by ID/name. */
-  start(id: StartReq): Promise<StartRes>;
-
-  /** Stop a container by ID/name. */
-  stop(id: StopReq): Promise<StopRes>;
-
-  /** Restart a container (stop then start). */
-  restart(id: StartReq & StopReq): Promise<StartRes>;
-
-  /** Remove a container by ID/name. */
-  remove(id: string): Promise<void>;
-
-  /** Fetch logs for a container by ID/name. */
-  logs(id: string): Promise<string>;
-}
-
-/** --------- Supported Runtimes & Options --------- **/
-
-export type RuntimeType =
-  | "docker"
-  | "podman"
-  | "kubernetes"
-  | "crio"
-  | "containerd"
-  | "lxc"
-  | "lxd";
-
-export type ClientOptions = Dict;
-
-/** --------- Type Aliases for Platform Clients --------- **/
-
-// For maximal DRY and type safety, client implementations can import these directly:
-
-export type DockerClientType = ContainerRuntime<
-  DockerCreateRequest,
-  DockerCreateResponse,
-  string,
-  DockerInspectResponse,
-  string,
-  unknown,
-  string,
-  unknown
->;
-
-export type PodmanClientType = ContainerRuntime<
-  PodmanCreateRequest,
-  PodmanCreateResponse,
-  string,
-  PodmanInspectResponse,
-  string,
-  unknown,
-  string,
-  unknown
->;
-
-export type LxcClientType = ContainerRuntime<
-  LxcCreateRequest,
-  LxcCreateResponse,
-  string,
-  LxcInspectResponse,
-  string,
-  string,
-  string,
-  string
->;
 
 export type LxdClientType = ContainerRuntime<
   LxdCreateRequest,
@@ -225,20 +140,99 @@ export type LxdClientType = ContainerRuntime<
   string,
   LxdInspectResponse,
   string,
-  unknown,
+  void,
   string,
-  unknown
+  void
 >;
 
+/**
+ * --------- Kubernetes ---------
+ *
+ * We pull in V1Pod, V1PodSpec, V1ObjectMeta, V1Status, V1PodList directly
+ * from @kubernetes/client-node, so that our type definitions exactly match
+ * the Kubernetes API objects. We also carve out a “create‐only” version that
+ * omits server‐populated fields.
+ */
+
+import {
+  V1ObjectMeta,
+  V1Pod,
+  V1PodList,
+  V1PodSpec,
+  V1Status,
+} from "kubernetes-node";
+
+/**
+ * When creating a Pod, the server will populate `.status`. We only
+ * require `metadata` and `spec`. This makes `PodCreateRequest` safer.
+ */
+export interface KubernetesPodCreateRequest {
+  metadata: V1ObjectMeta & { name: string };
+  spec: V1PodSpec;
+  /**
+   * Any other top-level V1Pod fields are disallowed on creation
+   * (e.g. status, etc).
+   */
+}
+
+/** The API always returns a full V1Pod, with metadata, spec, and status */
+export type KubernetesPodResponse = V1Pod;
+
+/** When listing, the API returns V1PodList */
+export type KubernetesPodListResponse = V1PodList;
+
+/** Delete (stop) a Pod returns a V1Status */
+export type KubernetesDeleteResponse = V1Pod;
+
+/**
+ * KubernetesClientType ties all the above together:
+ * - create(...) takes a `KubernetesPodCreateRequest`
+ * - create(...) returns a full `KubernetesPodResponse`
+ * - inspect(...) returns a full `KubernetesPodResponse`
+ * - stop(...) returns `KubernetesDeleteResponse`
+ * - list(...) returns an array of `V1Pod` from `V1PodList.items`
+ */
 export type KubernetesClientType = ContainerRuntime<
-  KubernetesPodSpec,
+  KubernetesPodCreateRequest,
   KubernetesPodResponse,
   string,
   KubernetesPodResponse,
   string,
-  never, // start not supported
+  void,
   string,
-  unknown
+  KubernetesDeleteResponse
+>;
+
+/**
+ * --------- Containerd ---------
+ *
+ * We leave Containerd’s own types as they are, since they come from
+ * “containerd”’s TypeScript declarations directly.
+ */
+
+import type { Client as ContainerdClientLib } from "containerd";
+
+type ContainerdService = ContainerdClientLib["containers"];
+
+export type ContainerdCreateRequest = Parameters<
+  ContainerdService["create"]
+>[0];
+export type ContainerdCreateResponse = Awaited<
+  ReturnType<ContainerdService["create"]>
+>;
+export type ContainerdInspectRequest = Parameters<ContainerdService["get"]>[0];
+export type ContainerdInspectResponse = Awaited<
+  ReturnType<ContainerdService["get"]>
+>;
+export type ContainerdListRequest = Parameters<ContainerdService["list"]>[0];
+export type ContainerdListResponse = Awaited<
+  ReturnType<ContainerdService["list"]>
+>["containers"];
+export type ContainerdDeleteRequest = Parameters<
+  ContainerdService["delete"]
+>[0];
+export type ContainerdDeleteResponse = Awaited<
+  ReturnType<ContainerdService["delete"]>
 >;
 
 export type ContainerdClientType = ContainerRuntime<
@@ -247,18 +241,31 @@ export type ContainerdClientType = ContainerRuntime<
   string,
   ContainerdInspectResponse,
   string,
-  unknown,
+  void,
   string,
-  unknown
+  void
 >;
 
-export type CrioClientType = ContainerRuntime<
-  CrioCreateRequest,
-  CrioCreateResponse,
-  string,
-  CrioInspectResponse,
-  string,
-  unknown,
-  string,
-  unknown
->;
+/**
+ * --------- Abstract Runtimes & Options ---------
+ */
+
+export type RuntimeType =
+  | "docker"
+  | "podman"
+  | "kubernetes"
+  | "containerd"
+  | "lxd";
+
+export type ClientOptions = Dict;
+
+/**
+ * --------- UnimplementedError Helper ---------
+ */
+
+export class UnimplementedError extends Error {
+  constructor(method: string) {
+    super(`${method} is not implemented by this runtime client.`);
+    this.name = "UnimplementedError";
+  }
+}

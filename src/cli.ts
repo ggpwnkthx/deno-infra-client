@@ -6,16 +6,18 @@ import { detect } from "@ggpwnkthx/infra-sense";
 import { clientFactory } from "./clients/mod.ts";
 import type { ClientOptions, ContainerRuntime } from "./clients/types.ts";
 
-/**
- * Helper: detect which container platform is in use and instantiate its client.
- * Throws if detection fails or if no supported runtime is found.
- */
 async function getClient(
   ctx: CLIContext,
   opts: ClientOptions = {},
 ): Promise<ContainerRuntime> {
   const platform = await detect(ctx);
-  return clientFactory(platform, opts);
+  const client = clientFactory(platform, opts);
+  // If the client is KubernetesClient, we need to call init():
+  if ("init" in client && typeof (client as any).init === "function") {
+    // @ts-ignore
+    await (client as any).init();
+  }
+  return client;
 }
 
 // Define a Zod schema for the `create` command's flags
@@ -34,7 +36,6 @@ const createFlagsSchema = z.object({
 });
 
 async function main() {
-  // You can override name/version here, or let CLI auto‐load from deno.json/deno.jsonc.
   const cli = new CLI({ name: "container-cli", version: "0.1.0" });
 
   //
@@ -46,14 +47,19 @@ async function main() {
       try {
         const platform = await detect(ctx);
         const client = clientFactory(platform);
-        ctx.log({ platform, client });
+        ctx.log({
+          detected: {
+            type: platform.type,
+            runtime: platform.runtime,
+          },
+        });
       } catch (err) {
         throw new CLIError(`Detection failed: ${String(err)}`, 1);
       }
     },
     {
       description:
-        "Scan the environment and print detected platform + client instance.",
+        "Scan the environment and print detected platform + runtime.",
     },
   );
 
@@ -82,21 +88,17 @@ async function main() {
   cli.registerCommand(
     ["create"],
     async (_args, flags, ctx) => {
-      // At this point, `flags.data` is guaranteed to be a valid JSON string by Zod
       const { data } = flags as z.infer<typeof createFlagsSchema>;
-
       let parsed: unknown;
       try {
         parsed = JSON.parse(data);
       } catch (err: any) {
-        // This should never happen because the Zod schema already validated JSON,
-        // but we guard just in case.
         throw new CLIError(`Cannot parse JSON from --data: ${err.message}`, 1);
       }
 
       try {
         const client = await getClient(ctx);
-        const resp = await client.create(parsed);
+        const resp = await client.create(parsed as any);
         ctx.log({ resp });
       } catch (err) {
         throw new CLIError(`Create failed: ${String(err)}`, 1);
@@ -105,7 +107,6 @@ async function main() {
     {
       description:
         'Create a new container. Supply JSON via `--data`. E.g.: --data \'{"Image":"nginx:latest"}\'.',
-      flagsSchema: createFlagsSchema,
       examples: ['create --data \'{"Image":"nginx:latest"}\''],
     },
   );
@@ -148,8 +149,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        const res = await client.start(id);
-        ctx.log({ res });
+        await client.start(id);
+        ctx.log({ status: "started", id });
       } catch (err) {
         throw new CLIError(`Start failed: ${String(err)}`, 1);
       }
@@ -172,8 +173,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        const res = await client.stop(id);
-        ctx.log({ res });
+        await client.stop(id);
+        ctx.log({ status: "stopped", id });
       } catch (err) {
         throw new CLIError(`Stop failed: ${String(err)}`, 1);
       }
@@ -196,8 +197,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        const res = await client.restart(id);
-        ctx.log({ res });
+        await client.restart(id);
+        ctx.log({ status: "restarted", id });
       } catch (err) {
         throw new CLIError(`Restart failed: ${String(err)}`, 1);
       }
@@ -256,7 +257,6 @@ async function main() {
     },
   );
 
-  // Finally, run the CLI with Deno.args
   await cli.run(Deno.args);
 }
 

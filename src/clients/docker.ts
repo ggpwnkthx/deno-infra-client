@@ -1,97 +1,96 @@
 // src/clients/docker.ts
 
 import type {
-  ClientOptions,
   DockerClientType,
   DockerCreateRequest,
   DockerCreateResponse,
   DockerInspectResponse,
 } from "./types.ts";
-import { httpRequest } from "./utils/http.ts";
+import Docker from "dockerode";
+import type { Buffer } from "node:buffer";
 
+/**
+ * DockerClient uses the dockerode package to communicate with the Docker daemon
+ * over a Unix socket. Implements all ContainerRuntime methods: list, create,
+ * inspect, start, stop, restart, remove, logs.
+ */
 export class DockerClient implements DockerClientType {
-  private client: Deno.HttpClient;
+  private docker: Docker;
 
-  constructor(opts: ClientOptions = {}) {
-    const socketPath = (opts.socketPath as string) ?? "/var/run/docker.sock";
-    this.client = Deno.createHttpClient({
-      proxy: { transport: "unix", path: socketPath },
-    });
-  }
-
-  /** Create a new container */
-  create(options: DockerCreateRequest) {
-    return httpRequest<DockerCreateRequest, DockerCreateResponse>({
-      method: "POST",
-      url: "/v1.41/containers/create",
-      client: this.client,
-      body: options,
-    });
-  }
-
-  /** Inspect a container (get detailed info) */
-  inspect(id: string) {
-    return httpRequest<never, DockerInspectResponse>({
-      method: "GET",
-      url: `/v1.41/containers/${id}/json`,
-      client: this.client,
-    });
-  }
-
-  /** Start a container */
-  start(id: string) {
-    return httpRequest<never, unknown>({
-      method: "POST",
-      url: `/v1.41/containers/${id}/start`,
-      client: this.client,
-    });
-  }
-
-  /** Stop a container */
-  stop(id: string) {
-    return httpRequest<never, unknown>({
-      method: "POST",
-      url: `/v1.41/containers/${id}/stop`,
-      client: this.client,
-    });
+  constructor(opts: { socketPath?: string } = {}) {
+    const socketPath = opts.socketPath ?? "/var/run/docker.sock";
+    this.docker = new Docker({ socketPath });
   }
 
   /** List all containers (running and stopped) */
   async list(): Promise<unknown[]> {
-    const resp = await httpRequest<never, unknown[]>({
-      method: "GET",
-      url: `/v1.41/containers/json?all=true`,
-      client: this.client,
-    });
-    return resp;
+    const containers = await this.docker.listContainers({ all: true });
+    return containers;
   }
 
-  /** Restart a container (stop then start) */
-  restart(id: string) {
-    return httpRequest<never, unknown>({
-      method: "POST",
-      url: `/v1.41/containers/${id}/restart`,
-      client: this.client,
-    });
+  /** Create a new container */
+  async create(options: DockerCreateRequest): Promise<DockerCreateResponse> {
+    // dockerode’s createContainer returns a Container object with an `id` property
+    const container = await this.docker.createContainer(options);
+    return { id: container.id };
+  }
+
+  /** Inspect a container (get detailed info) */
+  async inspect(id: string): Promise<DockerInspectResponse> {
+    const container = this.docker.getContainer(id);
+    const info = await container.inspect();
+    // The returned object from container.inspect() already matches DockerInspectResponse
+    return info as DockerInspectResponse;
+  }
+
+  /** Start a container */
+  async start(id: string): Promise<void> {
+    const container = this.docker.getContainer(id);
+    await container.start();
+  }
+
+  /** Stop a container */
+  async stop(id: string): Promise<void> {
+    const container = this.docker.getContainer(id);
+    await container.stop();
+  }
+
+  /** Restart a container */
+  async restart(id: string): Promise<void> {
+    const container = this.docker.getContainer(id);
+    await container.restart();
   }
 
   /** Remove a container */
-  remove(id: string) {
-    return httpRequest<never, void>({
-      method: "DELETE",
-      url: `/v1.41/containers/${id}`,
-      client: this.client,
-    });
+  async remove(id: string): Promise<void> {
+    const container = this.docker.getContainer(id);
+    await container.remove();
   }
 
-  /** Fetch logs (stdout + stderr) */
+  /**
+   * Fetch logs (stdout + stderr) as a full string.
+   * Uses dockerode’s logs() which returns a stream; we collect it into a string.
+   */
   async logs(id: string): Promise<string> {
-    // Combine stdout and stderr by default (Docker API merges them if both flags are set)
-    const text = await httpRequest<never, string>({
-      method: "GET",
-      url: `/v1.41/containers/${id}/logs?stdout=true&stderr=true`,
-      client: this.client,
+    const container = this.docker.getContainer(id);
+    const logStream = await container.logs({
+      stdout: true,
+      stderr: true,
+      follow: false,
+      tail: "all",
     });
-    return text;
+
+    return new Promise<string>((resolve, reject) => {
+      let output = "";
+      logStream.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+      logStream.on("end", () => {
+        resolve(output);
+      });
+      logStream.on("error", (err: any) => {
+        reject(err);
+      });
+    });
   }
 }

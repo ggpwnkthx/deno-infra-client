@@ -5,7 +5,11 @@
   "imports": {
     "@ggpwnkthx/generic-cli": "jsr:@ggpwnkthx/generic-cli@0.1.4",
     "@ggpwnkthx/infra-sense": "jsr:@ggpwnkthx/infra-sense@0.2.3",
-    "zod": "npm:zod"
+    "containerd": "npm:@containers-js/containerd@0.0.1",
+    "dockerode": "npm:dockerode@4.0.7",
+    "kubernetes-node": "npm:@kubernetes/client-node@1.3.0",
+    "ts-lxd": "npm:ts-lxd@0.1.9",
+    "zod": "npm:zod@3.25.53"
   },
   "exports": "./mod.ts",
   "fmt": {

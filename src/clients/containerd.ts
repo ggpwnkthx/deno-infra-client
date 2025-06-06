@@ -5,109 +5,100 @@ import type {
   ContainerdClientType,
   ContainerdCreateRequest,
   ContainerdCreateResponse,
+  ContainerdDeleteResponse,
   ContainerdInspectResponse,
+  ContainerdListResponse,
 } from "./types.ts";
-import { createGrpcClient, grpcRequest } from "./utils/grpc.ts";
+import { UnimplementedError } from "./types.ts";
+import { Client as ContainerdClientLib } from "containerd";
 
-type ContainerdGrpc = {
-  Create: (
-    req: ContainerdCreateRequest,
-    cb: (err: Error | null, resp: ContainerdCreateResponse) => void,
-  ) => void;
-  Get: (
-    req: { id: string },
-    cb: (err: Error | null, resp: ContainerdInspectResponse) => void,
-  ) => void;
-  List: (
-    req: unknown,
-    cb: (err: Error | null, resp: { containers: unknown[] }) => void,
-  ) => void;
-  // Note: containerd’s full API also has Delete, Task, etc., but our simplified type here omits them.
-};
-
+/**
+ * Wraps the @containers-js/containerd Client to implement ContainerdClientType.
+ * - Uses a Unix socket by default (e.g. /run/containerd/containerd.sock)
+ * - Operates within a given namespace (default "default")
+ */
 export class ContainerdClient implements ContainerdClientType {
-  private client: ContainerdGrpc;
+  private client: ContainerdClientLib;
 
   constructor(opts: ClientOptions = {}) {
-    const socketPath = (opts.socketPath as string) ??
+    // Determine the socket path (with unix:// prefix if not already present)
+    const rawSocket = (opts.socketPath as string) ??
       "/run/containerd/containerd.sock";
-    const protoPath = (opts.protoPath as string) ?? "path/to/containerd.proto";
-    this.client = createGrpcClient<ContainerdGrpc>(
-      protoPath,
-      "containerd.services.containers.v1",
-      "Containers",
-      socketPath,
-    );
+    const socketUrl =
+      rawSocket.startsWith("unix://") || rawSocket.startsWith("npipe://")
+        ? rawSocket
+        : `unix://${rawSocket}`;
+
+    // Use the provided namespace or default to "default"
+    const namespace = (opts.namespace as string) ?? "default";
+
+    // Instantiate the underlying containerd client
+    this.client = new ContainerdClientLib(socketUrl, namespace);
   }
 
-  /** Create a new container in containerd */
-  create(options: ContainerdCreateRequest) {
-    return grpcRequest<ContainerdCreateRequest, ContainerdCreateResponse>(
-      this.client.Create,
-      options,
-    );
+  /**
+   * Create a new container in containerd
+   *
+   * @param options  The raw request payload matching ContainerdCreateRequest
+   * @returns        The full response object matching ContainerdCreateResponse
+   */
+  async create(
+    options: ContainerdCreateRequest,
+  ): Promise<ContainerdCreateResponse> {
+    // Directly pass the strongly-typed request into containerd
+    const response = await this.client.containers.create(options);
+    return response;
   }
 
-  /** Inspect a container */
-  inspect(id: string) {
-    return grpcRequest<{ id: string }, ContainerdInspectResponse>(
-      this.client.Get,
-      { id },
-    );
+  /**
+   * Inspect (get) a single container’s detailed info
+   *
+   * @param id  The container ID to inspect
+   * @returns   Detailed container information matching ContainerdInspectResponse
+   */
+  inspect(id: string): Promise<ContainerdInspectResponse> {
+    // Delegates to client.containers.get, passing a typed request { id }
+    return this.client.containers.get({ id });
   }
 
-  /** Start is not directly supported here (requires using Tasks API) */
-  start(_id: string) {
-    return Promise.reject(
-      new Error(
-        "Containerd: start not directly supported; handled by Tasks API.",
-      ),
-    );
+  /**
+   * List all containerd containers in the current namespace
+   *
+   * @returns  The full response matching ContainerdListResponse
+   */
+  async list(): Promise<ContainerdListResponse> {
+    // client.containers.list() returns a typed ContainerdListResponse
+    return (await this.client.containers.list({})).containers;
   }
 
-  /** Stop is not directly supported here (handled by Tasks API) */
-  stop(_id: string) {
-    return Promise.reject(
-      new Error(
-        "Containerd: stop not directly supported; handled by Tasks API.",
-      ),
-    );
+  /** Start is not implemented here; containerd tasks are managed via TaskService */
+  start(_id: string): Promise<void> {
+    throw new UnimplementedError("ContainerdClient.start");
   }
 
-  /** List all containerd containers */
-  async list(): Promise<unknown[]> {
-    const resp = await new Promise<{ containers: unknown[] }>(
-      (resolve, reject) => {
-        this.client.List({}, (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        });
-      },
-    );
-    return resp.containers;
+  /** Stop is not implemented here; containerd tasks are managed via TaskService */
+  stop(_id: string): Promise<void> {
+    throw new UnimplementedError("ContainerdClient.stop");
   }
 
-  /** Restart a containerd container */
-  restart(_id: string): Promise<unknown> {
-    // Since `start` and `stop` are not supported at this layer, simply throw for now
-    throw new Error(
-      "Containerd: restart not supported in this client implementation.",
-    );
+  /** Restart is not implemented here; containerd tasks are managed via TaskService */
+  restart(_id: string): Promise<void> {
+    throw new UnimplementedError("ContainerdClient.restart");
   }
 
-  /** Remove a containerd container */
-  remove(_id: string): Promise<void> {
-    // In a complete containerd client, this would call the Delete RPC. Here:
-    throw new Error(
-      "Containerd: remove not supported in this client implementation.",
-    );
+  /**
+   * Remove (delete) a container
+   *
+   * @param id  The container ID to delete
+   * @returns   The full response matching ContainerdDeleteResponse
+   */
+  async remove(id: string): Promise<void> {
+    // Delegates to client.containers.delete with a typed request { id }
+    await this.client.containers.delete({ id });
   }
 
-  /** Fetch logs for a containerd container */
+  /** Logs are not implemented at this layer (TaskService is required) */
   logs(_id: string): Promise<string> {
-    // containerd logs are usually retrieved via the Task service (Stdout/Stderr). Omitted here.
-    throw new Error(
-      "Containerd: logs not supported in this client implementation.",
-    );
+    throw new UnimplementedError("ContainerdClient.logs");
   }
 }
