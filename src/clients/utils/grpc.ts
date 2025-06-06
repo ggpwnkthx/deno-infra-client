@@ -1,3 +1,5 @@
+// src/clients/utils/grpc.ts
+
 import * as grpc from "npm:@grpc/grpc-js";
 import * as protoLoader from "npm:@grpc/proto-loader";
 

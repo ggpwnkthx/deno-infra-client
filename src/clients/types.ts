@@ -144,11 +144,29 @@ export interface ContainerRuntime<
   StopReq = string,
   StopRes = unknown,
 > {
-  checkPermissions(): Promise<boolean>;
+  /** List all containers (returns an array of “raw” container objects). */
+  list(): Promise<unknown[]>;
+
+  /** Create a new container given `CreateReq`. */
   create(options: CreateReq): Promise<CreateRes>;
+
+  /** Inspect a single container by ID/name. */
   inspect(id: InspectReq): Promise<InspectRes>;
+
+  /** Start a container by ID/name. */
   start(id: StartReq): Promise<StartRes>;
+
+  /** Stop a container by ID/name. */
   stop(id: StopReq): Promise<StopRes>;
+
+  /** Restart a container (stop then start). */
+  restart(id: StartReq & StopReq): Promise<StartRes>;
+
+  /** Remove a container by ID/name. */
+  remove(id: string): Promise<void>;
+
+  /** Fetch logs for a container by ID/name. */
+  logs(id: string): Promise<string>;
 }
 
 /** --------- Supported Runtimes & Options --------- **/

@@ -29,6 +29,7 @@ export function clientFactory(
     case PlatformType.Kubernetes:
       // When running under Kubernetes, always use the Kubernetes client.
       return new KubernetesClient(opts);
+
     case PlatformType.Standalone:
       // For standalone platforms, switch on the specific runtime.
       switch (platform.runtime) {
