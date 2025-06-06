@@ -4,11 +4,11 @@ import { z } from "zod";
 import { CLI, type CLIContext, CLIError } from "@ggpwnkthx/generic-cli";
 import { detect } from "@ggpwnkthx/infra-sense";
 import { clientFactory } from "./clients/mod.ts";
-import type { ClientOptions, ContainerRuntime } from "./clients/types.ts";
+import type { ContainerRuntime, CreateOptions } from "./clients/types.ts";
 
 async function getClient(
   ctx: CLIContext,
-  opts: ClientOptions = {},
+  opts: CreateOptions = {},
 ): Promise<ContainerRuntime> {
   const platform = await detect(ctx);
   const client = clientFactory(platform, opts);
@@ -96,7 +96,7 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        const resp = await client.create(parsed as any);
+        const resp = await client.create(parsed as CreateOptions);
         ctx.log({ resp });
       } catch (err) {
         throw new CLIError(`Create failed: ${String(err)}`, 1);
@@ -147,8 +147,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        await client.start(id);
-        ctx.log({ status: "started", id });
+        const resp = await client.start(id);
+        ctx.log({ status: resp });
       } catch (err) {
         throw new CLIError(`Start failed: ${String(err)}`, 1);
       }
@@ -171,8 +171,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        await client.stop(id);
-        ctx.log({ status: "stopped", id });
+        const resp = await client.stop(id);
+        ctx.log({ status: resp });
       } catch (err) {
         throw new CLIError(`Stop failed: ${String(err)}`, 1);
       }
@@ -195,8 +195,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        await client.restart(id);
-        ctx.log({ status: "restarted", id });
+        const resp = await client.restart(id);
+        ctx.log({ status: resp });
       } catch (err) {
         throw new CLIError(`Restart failed: ${String(err)}`, 1);
       }
@@ -219,8 +219,8 @@ async function main() {
 
       try {
         const client = await getClient(ctx);
-        await client.remove(id);
-        ctx.log({ status: "removed", id });
+        const resp = await client.remove(id);
+        ctx.log({ status: resp });
       } catch (err) {
         throw new CLIError(`Remove failed: ${String(err)}`, 1);
       }
@@ -244,7 +244,7 @@ async function main() {
       try {
         const client = await getClient(ctx);
         const text = await client.logs(id);
-        ctx.log(text);
+        ctx.log({ text });
       } catch (err) {
         throw new CLIError(`Logs failed: ${String(err)}`, 1);
       }

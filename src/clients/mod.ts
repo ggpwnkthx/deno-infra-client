@@ -1,6 +1,6 @@
 // src/clients/mod.ts
 
-import type { ClientOptions, ContainerRuntime } from "./types.ts";
+import type { CreateOptions } from "./types.ts";
 import { DockerClient } from "./docker.ts";
 import { PodmanClient } from "./podman.ts";
 import { KubernetesClient } from "./kubernetes.ts";
@@ -11,25 +11,21 @@ import {
   PlatformType,
   Runtime,
 } from "@ggpwnkthx/infra-sense";
+import type { ContainerRuntime } from "./types.ts";
 
 /**
  * Create a container runtime client based on the detected ContainerPlatform.
- *
- * @param platform   The detected platform (type + runtime) from infra-sense.
- * @param opts       Any ClientOptions to pass along to the chosen client.
- * @returns          An instance of a ContainerRuntime-implementing client.
+ * All clients now conform to the unified ContainerRuntime interface.
  */
 export function clientFactory(
   platform: ContainerPlatform,
-  opts: ClientOptions = {},
+  opts: CreateOptions = {},
 ): ContainerRuntime {
   switch (platform.type) {
     case PlatformType.Kubernetes:
-      // When running under Kubernetes, always use the Kubernetes client.
       return new KubernetesClient(opts);
 
     case PlatformType.Standalone:
-      // For standalone platforms, switch on the specific runtime.
       switch (platform.runtime) {
         case Runtime.Docker:
           return new DockerClient(opts);
@@ -46,7 +42,6 @@ export function clientFactory(
       }
 
     case PlatformType.Host:
-      // No container runtime is available on a pure host platform.
       throw new Error(
         "Host platform detected; no container runtime client available.",
       );
