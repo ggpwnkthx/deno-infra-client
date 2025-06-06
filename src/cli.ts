@@ -14,7 +14,6 @@ async function getClient(
   const client = clientFactory(platform, opts);
   // If the client is KubernetesClient, we need to call init():
   if ("init" in client && typeof (client as any).init === "function") {
-    // @ts-ignore
     await (client as any).init();
   }
   return client;
@@ -46,7 +45,6 @@ async function main() {
     async (_args, _flags, ctx) => {
       try {
         const platform = await detect(ctx);
-        const client = clientFactory(platform);
         ctx.log({
           detected: {
             type: platform.type,

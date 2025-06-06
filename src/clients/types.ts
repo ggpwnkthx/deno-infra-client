@@ -154,12 +154,11 @@ export type LxdClientType = ContainerRuntime<
  * omits server‐populated fields.
  */
 
-import {
+import type {
   V1ObjectMeta,
   V1Pod,
   V1PodList,
   V1PodSpec,
-  V1Status,
 } from "kubernetes-node";
 
 /**

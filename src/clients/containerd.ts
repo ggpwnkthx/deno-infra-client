@@ -5,7 +5,6 @@ import type {
   ContainerdClientType,
   ContainerdCreateRequest,
   ContainerdCreateResponse,
-  ContainerdDeleteResponse,
   ContainerdInspectResponse,
   ContainerdListResponse,
 } from "./types.ts";

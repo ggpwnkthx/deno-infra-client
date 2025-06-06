@@ -5,7 +5,6 @@ import type {
   KubernetesClientType,
   KubernetesDeleteResponse,
   KubernetesPodCreateRequest,
-  KubernetesPodListResponse,
   KubernetesPodResponse,
 } from "./types.ts";
 import * as k8s from "kubernetes-node";
